@@ -2,6 +2,7 @@ module W4 where
 
 import Control.Monad
 import Data.List
+import Data.List.Split
 import Data.IORef
 import System.IO
 import Control.Exception
@@ -290,7 +291,9 @@ hFetchLines h nums =
 -- NB! The lines might have different numbers of elements.
 
 readCSV :: FilePath -> IO [[String]]
-readCSV path = undefined
+readCSV path =
+  do content <- readFile path
+     return $ map (wordsBy (==',')) $ lines content
 
 -- Ex 18: your task is to compare two files, a and b. The files should
 -- have the same contents, but if lines at index i differ from each
@@ -332,7 +335,15 @@ readCSV path = undefined
 -- [String] -> [String] -> [String].
 
 compareFiles :: FilePath -> FilePath -> IO ()
-compareFiles a b = undefined
+compareFiles a b =
+  let cmp :: [String] -> [String] -> [String]
+      cmp [] [] = []
+      cmp (a:aa) (b:bb) = if a == b then cmp aa bb else ["< " ++ a, "> " ++ b] ++ cmp aa bb
+  in do acontent <- readFile a
+        bcontent <- readFile b
+        let result = cmp (lines acontent) (lines bcontent)
+        putStrLn $ intercalate "\n" result
+        return ()
 
 -- Ex 19: In this exercise we see how a program can be split into a
 -- pure part that does all of the work, and a simple IO wrapper that
@@ -360,4 +371,9 @@ compareFiles a b = undefined
 --
 
 interact' :: ((String,st) -> (Bool,String,st)) -> st -> IO st
-interact' f state = undefined
+interact' f state = do cmd <- getLine
+                       let (continue, comment, newState) = f (cmd, state)
+                       putStr comment
+                       if continue
+                         then interact' f newState
+                         else return newState
