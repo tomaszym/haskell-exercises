@@ -1,7 +1,7 @@
 module W6 where
 
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.Trans.State
 import Data.Char
 
 -- Week 6: Monads
@@ -180,10 +180,21 @@ selectSum xs is = undefined
 data Logger a = Logger [String] a
   deriving Show
 
+instance Functor Logger where
+  fmap f (Logger l a) = Logger l (f a)
+
 instance Monad Logger where
   return x = Logger [] x
   Logger la a >>= f = Logger (la++lb) b
     where Logger lb b = f a
+
+-- disregard this. in recent versions of the Haskell standard library,
+-- all Monads must also be Applicative. These exercises don't really
+-- cover Applicative.
+instance Applicative Logger where
+  pure = return
+  (<*>) = ap
+
 
 msg :: String -> Logger ()
 msg s = Logger [s] ()
@@ -580,6 +591,19 @@ f2 acc x = undefined
 
 data Result a = MkResult a | NoResult | Failure String deriving (Show,Eq)
 
+-- A straightforward Functor instance
+instance Functor Result where
+  fmap f (MkResult a) = MkResult (f a)
+  fmap _ NoResult = NoResult
+  fmap _ (Failure s) = Failure s
+
+-- disregard this. in recent versions of the Haskell standard library,
+-- all Monads must also be Applicative. These exercises don't really
+-- cover Applicative.
+instance Applicative Result where
+  pure = return
+  (<*>) = ap
+
 instance Monad Result where
 #ifdef sol
   return = MkResult
@@ -588,6 +612,7 @@ instance Monad Result where
   NoResult   >>= _  = NoResult
   Failure x  >>= _  = Failure x
 #else
+  -- implement return and >>=
 #endif
 
 -- Ex 16: Here is the type SL that combines the State and Logger
@@ -601,6 +626,8 @@ instance Monad Result where
 -- monad.
 --
 -- This is a tough one. Keep trying and you'll get it!
+--
+-- You might find it easier to start with the Functor instance
 --
 -- Examples:
 --   runSL (putSL 2 >> msgSL "hello" >> getSL) 0
@@ -630,6 +657,18 @@ putSL s' = SL (\s -> ((),s',[]))
 modifySL :: (Int->Int) -> SL ()
 modifySL f = SL (\s -> ((),f s,[]))
 
+instance Functor SL where
+#ifdef sol
+  fmap f (SL g) = SL (\s -> let (a,s',log) = g s in (f a, s', reverse log))
+#else
+  -- implement fmap
+#endif
+
+-- again, disregard this
+instance Applicative SL where
+  pure = return
+  (<*>) = ap
+
 instance Monad SL where
 #ifdef sol
   return x = SL (\s -> (x,s,[]))
@@ -639,4 +678,5 @@ instance Monad SL where
                          (v2,state2,log2) = runSL op2 state1
                      in (v2,state2,log++log2)
 #else
+  -- implement return and >>=
 #endif
