@@ -4,6 +4,7 @@ import Control.Monad
 import Data.List
 import Data.IORef
 import System.IO
+import Control.Exception
 
 -- Week 4:
 --   * The IO type
@@ -101,7 +102,10 @@ isums = readsum 0
 -- argument has type IO Bool.
 
 whenM :: IO Bool -> IO () -> IO ()
-whenM cond op = undefined
+whenM cond op =
+  do
+    p <- cond
+    when p op
 
 -- Ex 9: implement the while loop. while condition operation should
 -- run operation as long as condition returns True.
@@ -118,7 +122,12 @@ whenM cond op = undefined
 -- This prints YAY! as long as the user keeps answering Y
 
 while :: IO Bool -> IO () -> IO ()
-while cond op = undefined
+while cond op =
+  whenM cond (
+    do
+      op
+      while cond op
+    )
 
 -- Ex 10: given a string and an IO operation, print the string, run
 -- the IO operation, print the string again, and finally return what
@@ -137,7 +146,10 @@ while cond op = undefined
 --     4. returns the line read from the user
 
 debug :: String -> IO a -> IO a
-debug s op = undefined
+debug s op = do putStrLn s
+                a <- op
+                putStrLn s
+                evaluate a
 
 -- Ex 11: Reimplement mapM_ (specialized to the IO type) using
 -- recursion and pattern matching.
@@ -147,13 +159,20 @@ debug s op = undefined
 -- value in the list.
 
 mymapM_ :: (a -> IO b) -> [a] -> IO ()
-mymapM_ = undefined
+mymapM_ f [] = pure ()
+mymapM_ f (a:tail) = do f a
+                        mymapM_ f tail
 
 -- Ex 12: Reimplement the function forM using pattern matching and
 -- recursion.
 
 myforM :: [a] -> (a -> IO b) -> IO [b]
-myforM as f = undefined
+myforM [a] f = do k <- f a
+                  return [k]
+myforM (a:tail) f = do b <- f a
+                       bs <- myforM tail f
+                       return $ b : bs
+
 
 -- Ex 13: sometimes one bumps into IO operations that return IO
 -- operations. For instance the type IO (IO Int) means an IO operation
@@ -177,8 +196,8 @@ myforM as f = undefined
 --     do l <- readLn
 --        replicateM l getLine
 
-tuplaKutsu :: IO (IO a) -> IO a
-tuplaKutsu op = undefined
+doubleCall :: IO (IO a) -> IO a
+doubleCall op = join op
 
 -- Ex 14: implement the analogue of function composition (the (.)
 -- operator) for IO operations. That is, take an operation op1 of type
@@ -196,7 +215,8 @@ tuplaKutsu op = undefined
 --   3. return the result (of type b)
 
 compose :: (a -> IO b) -> (c -> IO a) -> c -> IO b
-compose op1 op2 c = undefined
+compose op1 op2 c = do a <- op2 c
+                       op1 a
 
 -- Ex 15: take a look at the documentaiton for Data.IORef
 -- <http://www.haskell.org/ghc/docs/latest/html/libraries/base/Data-IORef.html>
@@ -221,7 +241,17 @@ compose op1 op2 c = undefined
 --  4
 
 mkCounter :: IO (IO (), IO Int)
-mkCounter = undefined
+mkCounter =
+  do
+    ref <- newIORef 0
+    let
+      get = readIORef ref
+      inc = do {
+              a <- readIORef ref;
+              writeIORef ref (a+1);
+              return ();
+            }
+    return (inc, get)
 
 -- Ex 16: fetch from the given file (Handle) the lines with the given
 -- indices. Line indexing starts from 1. You can assume that the
@@ -230,7 +260,21 @@ mkCounter = undefined
 -- Have a look at the docs for the System.IO module for help.
 
 hFetchLines :: Handle -> [Int] -> IO [String]
-hFetchLines h nums = undefined
+hFetchLines h nums =
+  let
+    it :: Int -> Handle -> [Int] -> IO [String]
+    it _ h [] = do hClose h
+                   return []
+    it k h nums@(cur:tail) =
+      if k == cur
+        then do l <- hGetLine h
+                before <- it (k+1) h tail
+                return $ l:before
+        else do
+          hGetLine h
+          it (k+1) h nums
+  in it 1 h nums
+
 
 -- Ex 17: CSV is a file format that stores a two-dimensional array of
 -- values in a file. Each row of the file is a row of the array. Each
